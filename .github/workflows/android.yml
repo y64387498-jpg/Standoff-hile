@@ -11,23 +11,47 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download Project
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Java 17
+      - name: Install Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Build Android APK
+      - name: Extract Android Project
+        run: |
+          mkdir -p workspace
+          ZIP_FILE=$(find . -maxdepth 2 -name '*.zip' -type f | head -n 1)
+
+          if [ -n "$ZIP_FILE" ]; then
+            unzip -o "$ZIP_FILE" -d workspace
+          else
+            echo "ZIP dosyası bulunamadı"
+            exit 1
+          fi
+
+          PROJECT_DIR=$(find workspace -type f \
+            \( -name settings.gradle -o -name settings.gradle.kts \) \
+            -printf '%h\n' | head -n 1)
+
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "Android proje klasörü bulunamadı"
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Build APK
         uses: gradle/gradle-build-action@v3
         with:
           gradle-version: '8.9'
+          build-root-directory: ${{ env.PROJECT_DIR }}
           arguments: assembleDebug
 
-      - name: Save APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Standoff2-Helper
-          path: app/build/outputs/apk/debug/*.apk
+          name: Standoff2-Helper-APK
+          path: workspace/**/app/build/outputs/apk/debug/*.apk
